@@ -6,8 +6,17 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <optional>
+
 
 namespace svg {
+using Color = std::string;
+
+// Объявив в заголовочном файле константу со спецификатором inline,
+// мы сделаем так, что она будет одной на все единицы трансляции,
+// которые подключают этот заголовок.
+// В противном случае каждая единица трансляции будет использовать свою копию этой константы
+inline const Color NoneColor{ "none" };
 
 struct Point {
     Point() = default;
@@ -18,6 +27,22 @@ struct Point {
     double x = 0;
     double y = 0;
 };
+
+enum class StrokeLineCap {
+    BUTT,
+    ROUND,
+    SQUARE,
+};
+std::ostream& operator<<(std::ostream& stream, const StrokeLineCap& stroke_line_cap);
+
+enum class StrokeLineJoin {
+    ARCS,
+    BEVEL,
+    MITER,
+    MITER_CLIP,
+    ROUND,
+};
+std::ostream& operator<<(std::ostream& stream, const StrokeLineJoin& stroke_line_join);
 
 /*
  * Вспомогательная структура, хранящая контекст для вывода SVG-документа с отступами.
@@ -84,11 +109,67 @@ public:
     virtual ~Drawable() = default;
 };
 
+template <typename Owner>
+class PathProps {
+public:
+    Owner& SetFillColor(Color color) {
+        fill_color_ = std::move(color);
+        return AsOwner();
+    }
+    Owner& SetStrokeColor(Color color) {
+        stroke_color_ = std::move(color);
+        return AsOwner();
+    }
+    Owner& SetStrokeWidth(double width) {
+        stroke_width_ = std::move(width);
+        return AsOwner();
+    }
+    Owner& SetStrokeLineCap(StrokeLineCap line_cap) {
+        stroke_linecap_ = std::move(line_cap);
+        return AsOwner();
+    }
+    Owner& SetStrokeLineJoin(StrokeLineJoin line_join) {
+        stroke_linejoin_ = std::move(line_join);
+        return AsOwner();
+    }
+
+protected:
+    ~PathProps() = default;
+    void RenderAttrs(std::ostream& out) const {
+        using namespace std::literals;
+        if (fill_color_) {
+            out << " fill=\""sv << *fill_color_ << "\""sv;
+        }
+        if (stroke_color_) {
+            out << " stroke=\""sv << *stroke_color_ << "\""sv;
+        }
+        if (stroke_width_) {
+            out << " stroke-width=\""sv << *stroke_width_ << "\""sv;
+        }
+        if (stroke_linecap_) {
+            out << " stroke-linecap=\""sv << *stroke_linecap_ << "\""sv;
+        }
+        if (stroke_linejoin_) {
+            out << " stroke-linejoin=\""sv << *stroke_linejoin_ << "\""sv;
+        }
+    }
+
+private:
+    Owner& AsOwner() {
+        return static_cast<Owner&>(*this);
+    }
+    std::optional<Color> fill_color_;
+    std::optional<Color> stroke_color_;
+    std::optional<double> stroke_width_;
+    std::optional<StrokeLineCap> stroke_linecap_;
+    std::optional<StrokeLineJoin> stroke_linejoin_;
+};
+
 /*
  * Класс Circle моделирует элемент <circle> для отображения круга
  * https://developer.mozilla.org/en-US/docs/Web/SVG/Element/circle
  */
-class Circle final : public Object {
+class Circle final : public Object, public PathProps<Circle> {
 public:
     Circle& SetCenter(Point center);
     Circle& SetRadius(double radius);
@@ -104,7 +185,7 @@ private:
  * Класс Polyline моделирует элемент <polyline> для отображения ломаных линий
  * https://developer.mozilla.org/en-US/docs/Web/SVG/Element/polyline
  */
-class Polyline final : public Object {
+class Polyline final : public Object, public PathProps<Polyline> {
 public:
     // Добавляет очередную вершину к ломаной линии
     Polyline& AddPoint(Point point);
@@ -119,7 +200,7 @@ private:
  * Класс Text моделирует элемент <text> для отображения текста
  * https://developer.mozilla.org/en-US/docs/Web/SVG/Element/text
  */
-class Text final : public Object {
+class Text final : public Object, public PathProps<Text> {
 public:
     // Задаёт координаты опорной точки (атрибуты x и y)
     Text& SetPosition(Point pos);
@@ -145,8 +226,8 @@ private:
     Point pos_;
     Point offset_;
     uint32_t size_ = 1;
-    std::string font_family_;
-    std::string font_weight_;
+    std::optional<std::string> font_family_;
+    std::optional<std::string> font_weight_;
     std::string data_;
 
     std::unordered_map<char, std::string> spec_symbols_ = {
@@ -160,13 +241,7 @@ private:
 
 class Document final : public ObjectContainer {
 public:
-    /*
-     Метод Add добавляет в svg-документ любой объект-наследник svg::Object.
-     Пример использования:
-     Document doc;
-     doc.Add(Circle().SetCenter({20, 30}).SetRadius(15));
-    */
-
+    // Метод Add добавляет в svg-документ любой объект-наследник svg::Object.
     // Добавляет в svg-документ объект-наследник svg::Object
     void AddPtr(std::unique_ptr<Object>&& obj) override;
 

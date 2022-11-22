@@ -12,6 +12,42 @@ void Object::Render(const RenderContext& context) const {
     context.out << std::endl;
 }
 
+// ------------ Color ------------
+
+Rgb::Rgb(uint8_t R, uint8_t G, uint8_t B)
+    : red(R)
+    , green(G)
+    , blue(B) {}
+
+Rgba::Rgba(size_t R, size_t G, size_t B, double op)
+    : red(R)
+    , green(G)
+    , blue(B)
+    , opacity(op) {}
+
+void pColor::operator()(std::monostate) const {
+    out << "none"s;
+}
+void pColor::operator()(const std::string& str) const {
+    out << str;
+}
+void pColor::operator()(const Rgb& rgb) const {
+    out << "rgb("s << static_cast<int>(rgb.red)
+        << ","s << static_cast<int>(rgb.green)
+        << ","s << static_cast<int>(rgb.blue) << ")"s;
+}
+void pColor::operator()(const Rgba& rgba) const {
+    out << "rgba("s << static_cast<int>(rgba.red)
+        << ","s << static_cast<int>(rgba.green)
+        << ","s << static_cast<int>(rgba.blue)
+        << ","s << rgba.opacity << ")"s;
+}
+
+std::ostream& operator<<(std::ostream& stm, const svg::Color& color) {
+    std::visit(svg::pColor{ stm }, color);
+    return stm;
+}
+
 // ---------- StrokeLineCap ------------------   
 
 std::ostream& operator<<(std::ostream& stream, const StrokeLineCap& stroke_line_cap) {
@@ -88,6 +124,7 @@ void Polyline::RenderObject(const RenderContext& context) const {
             out << " "sv;
         }
     }
+
     out << "\""sv;
     RenderAttrs(out);
     out << "/>"sv;
@@ -151,6 +188,7 @@ void Text::RenderObject(const RenderContext& context) const {
     if (font_weight_) {
         out << " font-weight=\"" << *font_weight_ << "\"";
     }
+
     RenderAttrs(out);
     out << ">" << data_ << "</text>";
 }
@@ -169,6 +207,7 @@ void Document::Render(std::ostream& out) const {
     for (auto& obj : objects_) {
         obj->Render(RenderContext(out, 2, 2));
     }
+
     out << "</svg>"sv;
 }
 

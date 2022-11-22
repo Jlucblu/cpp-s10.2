@@ -7,16 +7,50 @@
 #include <vector>
 #include <unordered_map>
 #include <optional>
+#include <variant>
+
 
 
 namespace svg {
-using Color = std::string;
+
+// ------------ Color ------------
+struct Rgb {
+public:
+    Rgb() = default;
+    Rgb(uint8_t R, uint8_t G, uint8_t B);
+
+    uint8_t red = 0;
+    uint8_t green = 0;
+    uint8_t blue = 0;
+};
+
+struct Rgba {
+    Rgba() = default;
+    Rgba(size_t R, size_t G, size_t B, double op);
+
+    uint8_t red = 0;
+    uint8_t green = 0;
+    uint8_t blue = 0;
+    double opacity = 1.0;
+};
+
+using Color = std::variant<std::monostate, std::string, Rgb, Rgba>;
+inline const Color NoneColor{ std::monostate() };
+
+struct pColor {
+    std::ostream& out;
+    void operator()(std::monostate) const;
+    void operator()(const std::string& color) const;
+    void operator()(const Rgb& rgb) const;
+    void operator()(const Rgba& rgba) const;
+};
+
+std::ostream& operator<<(std::ostream& stm, const svg::Color& color);
 
 // Объявив в заголовочном файле константу со спецификатором inline,
 // мы сделаем так, что она будет одной на все единицы трансляции,
 // которые подключают этот заголовок.
 // В противном случае каждая единица трансляции будет использовать свою копию этой константы
-inline const Color NoneColor{ "none" };
 
 struct Point {
     Point() = default;
